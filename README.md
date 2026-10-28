@@ -1,4 +1,4 @@
-# 📚 Vocab Highlighter - Chrome Extension
+# 📚 Vocab Highlighter - Chrome Extension - Vibe coding
 
 > **Tiện ích mở rộng Chrome (Manifest V3) hỗ trợ học tiếng Anh thông minh:** Tra từ vựng song ngữ, dịch đoạn văn dài, quản lý theo Thư mục, ghi chú cá nhân, ôn tập Flashcard 3D và xuất file Excel.
 
