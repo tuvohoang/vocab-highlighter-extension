@@ -28,3 +28,8 @@
 - Luôn có dữ liệu mặc định (fallback) cho mọi trường lưu trữ: `flashcards: []`, `folders: []`.
 - Cấu trúc ID duy nhất cho mỗi item (dùng `Date.now().toString()` hoặc UUID).
 
+## 5. Quy Trình Cập Nhật Phiên Bản & Tài Liệu (Version & Docs)
+- Mỗi khi phát hành phiên bản sửa lỗi mới (bug fix / patch version):
+  - Bắt buộc cập nhật lại file `README.md` trước khi hoàn tất bản vá.
+  - Nội dung cập nhật trong `README.md` cần phản ánh: thông tin phiên bản mới, danh sách các lỗi đã khắc phục (Changelog / Release Notes), và các lưu ý hoặc hướng dẫn cấu hình lại (nếu lỗi liên quan đến cách sử dụng).
+  - Đảm bảo phiên bản trong `manifest.json` và `README.md` luôn đồng bộ với nhau.
