@@ -1,9 +1,68 @@
-// content/content.js - Bôi đen tra từ hoặc dịch một đoạn văn dài bất kỳ
+// content/content.js - Bôi đen tra từ/đoạn văn, hỗ trợ di chuyển (draggable) và tự đóng khi click ra ngoài
 
 (function () {
   let hostEl = null;
   let shadowRoot = null;
   let lastLookupWord = "";
+  let isDragging = false;
+
+  // CÀI ĐẶT MẶC ĐỊNH & QUẢN LÝ SETTINGS
+  const defaultSettings = {
+    extensionEnabled: true,
+    triggerMode: "auto",
+    blacklist: "docs.google.com\nnotion.so\nfigma.com",
+    autoPlayAudio: false,
+    speechVoice: "en-US",
+    speechRate: 1.0,
+    targetLanguage: "vi",
+    showEnglishDef: true,
+    showExample: true,
+    defaultFolderId: "default",
+    studyDirection: "en-vi",
+    autoSpeakOnFlip: false,
+    theme: "light",
+    fontSize: "medium"
+  };
+
+  let currentSettings = { ...defaultSettings };
+
+  function loadSettings() {
+    if (!isExtensionValid()) return;
+    try {
+      chrome.storage.local.get({ settings: defaultSettings }, (res) => {
+        if (res && res.settings) {
+          currentSettings = { ...defaultSettings, ...res.settings };
+        }
+      });
+    } catch (e) {}
+  }
+
+  loadSettings();
+
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === "local" && changes.settings) {
+        currentSettings = { ...defaultSettings, ...(changes.settings.newValue || {}) };
+        if (shadowRoot) {
+          const activeTooltip = shadowRoot.querySelector(".vh-tooltip");
+          if (activeTooltip) {
+            applyTooltipAppearance(activeTooltip);
+          }
+        }
+      }
+    });
+  }
+
+  function isCurrentPageBlacklisted() {
+    if (!currentSettings.blacklist) return false;
+    const currentHost = window.location.hostname.toLowerCase();
+    const domains = currentSettings.blacklist
+      .split(/[\n,]+/)
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    return domains.some((d) => currentHost === d || currentHost.endsWith("." + d));
+  }
 
   function isExtensionValid() {
     try {
@@ -37,11 +96,28 @@
     lastLookupWord = "";
   }
 
+  // TÍNH NĂNG 1: TỰ ĐỘNG ĐÓNG POP-UP KHI CLICK SANG VÙNG KHÁC Ở BÊN NGOÀI
+  document.addEventListener("mousedown", (event) => {
+    // Nếu click ra ngoài host của extension thì đóng pop-up ngay lập tức
+    if (hostEl && !event.composedPath().includes(hostEl)) {
+      removeTooltip();
+    }
+  });
+
   // Sự kiện bôi đen văn bản
   function onMouseUp(event) {
+    if (isDragging) return;
     if (hostEl && event.composedPath().includes(hostEl)) {
       return;
     }
+
+    // Kiểm tra cài đặt: Đã tắt tiện ích hoặc trang web nằm trong danh sách đen
+    if (currentSettings.extensionEnabled === false) return;
+    if (isCurrentPageBlacklisted()) return;
+
+    // Kiểm tra chế độ kích hoạt bằng phím bổ trợ
+    if (currentSettings.triggerMode === "alt" && !event.altKey) return;
+    if (currentSettings.triggerMode === "ctrl" && (!event.ctrlKey && !event.metaKey)) return;
 
     setTimeout(() => {
       const selection = window.getSelection();
@@ -61,10 +137,6 @@
         }
 
         showTooltip(rect, text);
-      } else {
-        if (event.target !== hostEl) {
-          removeTooltip();
-        }
       }
     }, 15);
   }
@@ -76,6 +148,111 @@
       removeTooltip();
     }
   });
+
+  // TÍNH NĂNG 2: HỖ TRỢ KÉO DI CHUYỂN CỬA SỔ POP-UP (DRAGGABLE)
+  function makeDraggable(tooltip, handle) {
+    if (!tooltip || !handle) return;
+
+    let startX = 0;
+    let startY = 0;
+    let initialLeft = 0;
+    let initialTop = 0;
+
+    handle.addEventListener("mousedown", (e) => {
+      // Không kích hoạt kéo nếu click vào các nút bấm tương tác (đóng, loa, icon)
+      if (e.target.closest("button") || e.target.closest(".vh-close-btn") || e.target.closest(".vh-audio-btn") || e.target.closest(".vh-icon-btn")) {
+        return;
+      }
+
+      e.preventDefault();
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      initialLeft = parseFloat(tooltip.style.left) || tooltip.offsetLeft;
+      initialTop = parseFloat(tooltip.style.top) || tooltip.offsetTop;
+
+      tooltip.classList.add("vh-dragging");
+
+      function onMouseMove(moveEvent) {
+        if (!isDragging) return;
+
+        const deltaX = moveEvent.clientX - startX;
+        const deltaY = moveEvent.clientY - startY;
+
+        let newLeft = initialLeft + deltaX;
+        let newTop = initialTop + deltaY;
+
+        // Giới hạn trong viewport để không bị kéo mất khỏi màn hình
+        const minLeft = window.scrollX + 5;
+        const maxLeft = window.scrollX + window.innerWidth - tooltip.offsetWidth - 5;
+        const minTop = window.scrollY + 5;
+
+        newLeft = Math.max(minLeft, Math.min(newLeft, maxLeft));
+        newTop = Math.max(minTop, newTop);
+
+        tooltip.style.left = `${newLeft}px`;
+        tooltip.style.top = `${newTop}px`;
+      }
+
+      function onMouseUpGlobal() {
+        if (isDragging) {
+          isDragging = false;
+          tooltip.classList.remove("vh-dragging");
+          window.removeEventListener("mousemove", onMouseMove);
+          window.removeEventListener("mouseup", onMouseUpGlobal);
+        }
+      }
+
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUpGlobal);
+    });
+  }
+
+  // TẠO ICON HÌNH BÀN TAY KÉO MÀU ĐEN (SỬ DỤNG ẢNH UPLOAD CỦA NGƯỜI DÙNG)
+  function getDragHandleHtml() {
+    let iconUrl = "";
+    try {
+      if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id) {
+        iconUrl = chrome.runtime.getURL("icons/drag-hand.png");
+      }
+    } catch (e) {
+      iconUrl = "";
+    }
+
+    if (iconUrl) {
+      return `
+        <span class="vh-drag-handle" title="Bấm giữ để di chuyển vị trí pop-up">
+          <img src="${iconUrl}" width="16" height="16" alt="drag-hand" class="vh-drag-hand-img" />
+        </span>
+      `;
+    }
+
+    return `
+      <span class="vh-drag-handle" title="Bấm giữ để di chuyển vị trí pop-up">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#000000">
+          <path d="M10 9h1V2c0-.55.45-1 1-1s1 .45 1 1v7h1V3.5c0-.55.45-1 1-1s1 .45 1 1V9h1V5.5c0-.55.45-1 1-1s1 .45 1 1v5.5c0 4.42-3.58 8-8 8s-8-3.58-8-8V8c0-.55.45-1 1-1s1 .45 1 1v1h1V6.5c0-.55.45-1 1-1s1 .45 1 1V9z"/>
+        </svg>
+      </span>
+    `;
+  }
+
+  function applyTooltipAppearance(tooltip) {
+    if (!tooltip) return;
+    const isDark = currentSettings.theme === "dark" ||
+      (currentSettings.theme === "system" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    if (isDark) {
+      tooltip.classList.add("vh-dark");
+    } else {
+      tooltip.classList.remove("vh-dark");
+    }
+
+    if (currentSettings.fontSize === "small") {
+      tooltip.classList.add("vh-font-small");
+    } else if (currentSettings.fontSize === "large") {
+      tooltip.classList.add("vh-font-large");
+    }
+  }
 
   function showContextInvalidatedTooltip(rect, word) {
     const root = getShadowRoot();
@@ -98,6 +275,9 @@
 
     renderContextInvalidated(tooltip, word.slice(0, 30));
     root.appendChild(tooltip);
+
+    const handle = tooltip.querySelector(".vh-header");
+    makeDraggable(tooltip, handle);
   }
 
   async function showTooltip(rect, text) {
@@ -129,7 +309,10 @@
     const titlePreview = text.length > 35 ? text.slice(0, 35) + "..." : text;
     tooltip.innerHTML = `
       <div class="vh-header">
-        <span class="vh-title-loading">${isLong ? "Đang dịch đoạn văn..." : `Đang tra: "<strong>${escapeHtml(titlePreview)}</strong>"...`}</span>
+        <div class="vh-header-left">
+          ${getDragHandleHtml()}
+          <span class="vh-title-loading">${isLong ? "Đang dịch đoạn văn..." : `Đang tra: "<strong>${escapeHtml(titlePreview)}</strong>"...`}</span>
+        </div>
         <button class="vh-close-btn" title="Đóng">&times;</button>
       </div>
       <div class="vh-body vh-loading-spinner">
@@ -138,6 +321,10 @@
     `;
 
     root.appendChild(tooltip);
+    applyTooltipAppearance(tooltip);
+
+    const handle = tooltip.querySelector(".vh-header");
+    makeDraggable(tooltip, handle);
 
     tooltip.querySelector(".vh-close-btn").addEventListener("click", () => {
       removeTooltip();
@@ -149,7 +336,8 @@
         return;
       }
 
-      chrome.runtime.sendMessage({ action: "lookup_word", word: text }, async (response) => {
+      const targetLang = currentSettings.targetLanguage || "vi";
+      chrome.runtime.sendMessage({ action: "lookup_word", word: text, targetLang }, async (response) => {
         if (chrome.runtime.lastError) {
           const errMsg = chrome.runtime.lastError.message || "";
           if (errMsg.includes("invalidated") || !isExtensionValid()) {
@@ -165,10 +353,16 @@
             await renderLongTranslationData(tooltip, response.data);
           } else {
             await renderWordData(tooltip, response.data);
+            // Tự động phát âm nếu bật trong cài đặt
+            if (currentSettings.autoPlayAudio) {
+              playAudio(response.data.word, response.data.audio);
+            }
           }
+          applyTooltipAppearance(tooltip);
         } else {
           const errMsg = response && response.error ? response.error : "Không thể dịch nội dung này.";
           renderNotFound(tooltip, text, errMsg);
+          applyTooltipAppearance(tooltip);
         }
       });
     } catch (err) {
@@ -189,9 +383,12 @@
 
     tooltip.innerHTML = `
       <div class="vh-header">
-        <div class="vh-word-info">
-          <span class="vh-word-badge">🌐 Dịch đoạn văn</span>
-          <span class="vh-stat-badge">${data.wordCount} từ</span>
+        <div class="vh-header-left">
+          ${getDragHandleHtml()}
+          <div class="vh-word-info">
+            <span class="vh-word-badge">🌐 Dịch đoạn văn</span>
+            <span class="vh-stat-badge">${data.wordCount} từ</span>
+          </div>
         </div>
         <div class="vh-header-actions">
           <button class="vh-icon-btn vh-speak-btn" title="Nghe đọc tiếng Anh">🔊</button>
@@ -227,11 +424,13 @@
       </div>
     `;
 
+    const handle = tooltip.querySelector(".vh-header");
+    makeDraggable(tooltip, handle);
+
     tooltip.querySelector(".vh-close-btn").addEventListener("click", () => {
       removeTooltip();
     });
 
-    // Nút copy bản dịch
     const copyBtn = tooltip.querySelector(".vh-copy-btn");
     copyBtn.addEventListener("click", () => {
       navigator.clipboard.writeText(data.vietnameseMeaning).then(() => {
@@ -240,13 +439,11 @@
       });
     });
 
-    // Nút nghe đọc văn bản tiếng Anh
     const speakBtn = tooltip.querySelector(".vh-speak-btn");
     speakBtn.addEventListener("click", () => {
       fallbackSpeech(data.originalText);
     });
 
-    // Nút lưu đoạn văn vào Flashcard
     const saveBtn = tooltip.querySelector(".vh-save-btn");
     const folderSelect = tooltip.querySelector(".vh-folder-select");
     const noteInput = tooltip.querySelector(".vh-note-input");
@@ -260,7 +457,6 @@
       saveBtn.disabled = true;
       saveBtn.textContent = "Đang lưu...";
 
-      // Trích xuất tiêu đề ngắn gọn cho flashcard (dưới 40 ký tự)
       const shortWord = data.originalText.length > 50
         ? data.originalText.slice(0, 50) + "..."
         : data.originalText;
@@ -294,8 +490,11 @@
       getFolders()
     ]);
 
+    const defaultFolder = currentSettings.defaultFolderId || "default";
+    const selectedFolder = savedItem ? savedItem.folderId : defaultFolder;
+
     const folderOptions = folders.map((f) => {
-      const selected = savedItem && savedItem.folderId === f.id ? "selected" : "";
+      const selected = f.id === selectedFolder ? "selected" : "";
       return `<option value="${escapeHtml(f.id)}" ${selected}>📁 ${escapeHtml(f.name)}</option>`;
     }).join("");
 
@@ -307,12 +506,12 @@
     ` : "";
 
     let meaningsHtml = "";
-    if (data.meanings && data.meanings.length > 0) {
+    if (currentSettings.showEnglishDef !== false && data.meanings && data.meanings.length > 0) {
       data.meanings.slice(0, 2).forEach((m) => {
         const partOfSpeech = m.partOfSpeech ? `<span class="vh-pos">${escapeHtml(m.partOfSpeech)}</span>` : "";
         const defs = m.definitions.slice(0, 2).map((d) => {
           let item = `<li class="vh-def-item">${escapeHtml(d.definition)}`;
-          if (d.example) {
+          if (currentSettings.showExample !== false && d.example) {
             item += `<div class="vh-example">"${escapeHtml(d.example)}"</div>`;
           }
           item += `</li>`;
@@ -330,14 +529,17 @@
 
     tooltip.innerHTML = `
       <div class="vh-header">
-        <div class="vh-word-info">
-          <span class="vh-word">${escapeHtml(data.word)}</span>
-          ${data.phonetic ? `<span class="vh-phonetic">${escapeHtml(data.phonetic)}</span>` : ""}
-          <button class="vh-audio-btn" title="Phát âm">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-            </svg>
-          </button>
+        <div class="vh-header-left">
+          ${getDragHandleHtml()}
+          <div class="vh-word-info">
+            <span class="vh-word">${escapeHtml(data.word)}</span>
+            ${data.phonetic ? `<span class="vh-phonetic">${escapeHtml(data.phonetic)}</span>` : ""}
+            <button class="vh-audio-btn" title="Phát âm">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <button class="vh-close-btn" title="Đóng">&times;</button>
       </div>
@@ -367,6 +569,9 @@
         </button>
       </div>
     `;
+
+    const handle = tooltip.querySelector(".vh-header");
+    makeDraggable(tooltip, handle);
 
     tooltip.querySelector(".vh-close-btn").addEventListener("click", () => {
       removeTooltip();
@@ -425,7 +630,10 @@
   function renderContextInvalidated(tooltip, word) {
     tooltip.innerHTML = `
       <div class="vh-header">
-        <span class="vh-word">${escapeHtml((word || "Vocab").slice(0, 30))}</span>
+        <div class="vh-header-left">
+          ${getDragHandleHtml()}
+          <span class="vh-word">${escapeHtml((word || "Vocab").slice(0, 30))}</span>
+        </div>
         <button class="vh-close-btn" title="Đóng">&times;</button>
       </div>
       <div class="vh-body vh-invalidated-body">
@@ -436,6 +644,9 @@
         </div>
       </div>
     `;
+
+    const handle = tooltip.querySelector(".vh-header");
+    makeDraggable(tooltip, handle);
 
     tooltip.querySelector(".vh-close-btn").addEventListener("click", () => {
       removeTooltip();
@@ -452,13 +663,20 @@
   function renderNotFound(tooltip, word, message) {
     tooltip.innerHTML = `
       <div class="vh-header">
-        <span class="vh-word">${escapeHtml(word.slice(0, 30))}</span>
+        <div class="vh-header-left">
+          ${getDragHandleHtml()}
+          <span class="vh-word">${escapeHtml(word.slice(0, 30))}</span>
+        </div>
         <button class="vh-close-btn" title="Đóng">&times;</button>
       </div>
       <div class="vh-body vh-empty-body">
         <p class="vh-notfound-text">${escapeHtml(message)}</p>
       </div>
     `;
+
+    const handle = tooltip.querySelector(".vh-header");
+    makeDraggable(tooltip, handle);
+
     tooltip.querySelector(".vh-close-btn").addEventListener("click", () => {
       removeTooltip();
     });
@@ -467,13 +685,20 @@
   function renderError(tooltip, word, errorMsg) {
     tooltip.innerHTML = `
       <div class="vh-header">
-        <span class="vh-word">${escapeHtml(word.slice(0, 30))}</span>
+        <div class="vh-header-left">
+          ${getDragHandleHtml()}
+          <span class="vh-word">${escapeHtml(word.slice(0, 30))}</span>
+        </div>
         <button class="vh-close-btn" title="Đóng">&times;</button>
       </div>
       <div class="vh-body vh-empty-body">
         <p class="vh-error-text">${escapeHtml(errorMsg)}</p>
       </div>
     `;
+
+    const handle = tooltip.querySelector(".vh-header");
+    makeDraggable(tooltip, handle);
+
     tooltip.querySelector(".vh-close-btn").addEventListener("click", () => {
       removeTooltip();
     });
@@ -494,8 +719,8 @@
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "en-US";
-      utterance.rate = 0.95;
+      utterance.lang = currentSettings.speechVoice || "en-US";
+      utterance.rate = currentSettings.speechRate || 0.95;
       window.speechSynthesis.speak(utterance);
     }
   }
@@ -604,6 +829,18 @@
   }
 
   function getShadowStyles() {
+    let cursorUrl = "";
+    try {
+      if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id) {
+        cursorUrl = chrome.runtime.getURL("icons/drag-hand-cursor.png");
+      }
+    } catch (e) {
+      cursorUrl = "";
+    }
+
+    const cursorGrab = cursorUrl ? `url("${cursorUrl}") 10 2, grab` : `grab`;
+    const cursorGrabbing = cursorUrl ? `url("${cursorUrl}") 10 2, grabbing !important` : `grabbing !important`;
+
     return `
       .vh-tooltip {
         position: absolute;
@@ -621,6 +858,13 @@
         overflow: hidden;
         animation: vh-fade-in 0.15s ease-out;
         z-index: 2147483647;
+        transition: box-shadow 0.15s;
+      }
+
+      .vh-tooltip.vh-dragging {
+        box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.15);
+        opacity: 0.96;
+        user-select: none;
       }
 
       @keyframes vh-fade-in {
@@ -632,15 +876,66 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 10px 14px;
+        padding: 9px 12px;
         background: #f8fafc;
         border-bottom: 1px solid #f1f5f9;
+        cursor: ${cursorGrab};
+        user-select: none;
+      }
+
+      .vh-tooltip.vh-dragging .vh-header,
+      .vh-tooltip.vh-dragging {
+        cursor: ${cursorGrabbing};
+      }
+
+      .vh-header-left {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      .vh-drag-handle {
+        color: #000000;
+        fill: #000000;
+        cursor: inherit;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+        transition: transform 0.15s, opacity 0.15s;
+      }
+
+      .vh-drag-handle img,
+      .vh-drag-hand-img {
+        width: 17px;
+        height: 17px;
+        object-fit: contain;
+        display: block;
+        user-select: none;
+        pointer-events: none;
+      }
+
+      .vh-drag-handle svg {
+        fill: #000000 !important;
+        width: 16px;
+        height: 16px;
+        display: block;
+      }
+
+      .vh-drag-handle:hover {
+        transform: scale(1.18);
+        opacity: 0.8;
       }
 
       .vh-header-actions {
         display: flex;
         align-items: center;
         gap: 4px;
+        flex-shrink: 0;
       }
 
       .vh-icon-btn {
@@ -660,7 +955,7 @@
       .vh-word-info {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         flex-wrap: wrap;
       }
 
@@ -680,7 +975,7 @@
       }
 
       .vh-word {
-        font-size: 16px;
+        font-size: 15px;
         font-weight: 700;
         color: #0f172a;
       }
@@ -701,8 +996,8 @@
         color: #4338ca;
         border: none;
         border-radius: 50%;
-        width: 26px;
-        height: 26px;
+        width: 24px;
+        height: 24px;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -992,6 +1287,90 @@
 
       .vh-save-btn.vh-saved {
         background: #10b981;
+      }
+
+      /* Che do toi (Dark mode) */
+      .vh-tooltip.vh-dark {
+        background: #1e293b;
+        color: #f1f5f9;
+        border-color: #334155;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+      }
+      .vh-tooltip.vh-dark .vh-header,
+      .vh-tooltip.vh-dark .vh-footer {
+        background: #0f172a;
+        border-color: #334155;
+      }
+      .vh-tooltip.vh-dark .vh-word {
+        color: #f8fafc;
+      }
+      .vh-tooltip.vh-dark .vh-audio-btn {
+        background: #334155;
+        color: #818cf8;
+      }
+      .vh-tooltip.vh-dark .vh-audio-btn:hover {
+        background: #475569;
+      }
+      .vh-tooltip.vh-dark .vh-close-btn,
+      .vh-tooltip.vh-dark .vh-drag-handle {
+        color: #94a3b8;
+      }
+      .vh-tooltip.vh-dark .vh-drag-handle:hover,
+      .vh-tooltip.vh-dark .vh-close-btn:hover {
+        background: #334155;
+        color: #f8fafc;
+      }
+      .vh-tooltip.vh-dark .vh-def-item {
+        color: #cbd5e1;
+      }
+      .vh-tooltip.vh-dark .vh-example {
+        color: #94a3b8;
+      }
+      .vh-tooltip.vh-dark .vh-note-input {
+        background: #0f172a;
+        border-color: #334155;
+        color: #f1f5f9;
+      }
+      .vh-tooltip.vh-dark .vh-note-input:focus {
+        border-color: #6366f1;
+        background: #1e293b;
+      }
+      .vh-tooltip.vh-dark .vh-folder-select {
+        background: #0f172a;
+        border-color: #334155;
+        color: #f1f5f9;
+      }
+      .vh-tooltip.vh-dark .vh-vi-box {
+        background: rgba(6, 95, 70, 0.25);
+        border-color: #047857;
+      }
+      .vh-tooltip.vh-dark .vh-vi-text {
+        color: #6ee7b7;
+      }
+      .vh-tooltip.vh-dark .vh-flag-badge {
+        color: #34d399;
+      }
+
+      /* Co chu (Font size) */
+      .vh-tooltip.vh-font-small {
+        font-size: 11px;
+        width: 310px;
+      }
+      .vh-tooltip.vh-font-small .vh-word {
+        font-size: 14px;
+      }
+      .vh-tooltip.vh-font-small .vh-vi-text {
+        font-size: 12px;
+      }
+      .vh-tooltip.vh-font-large {
+        font-size: 15px;
+        width: 380px;
+      }
+      .vh-tooltip.vh-font-large .vh-word {
+        font-size: 18px;
+      }
+      .vh-tooltip.vh-font-large .vh-vi-text {
+        font-size: 16px;
       }
     `;
   }

@@ -36,6 +36,10 @@
     - Nút **📋 Sao chép bản dịch** 1 chạm vào Clipboard.
     - Nút **🔊 Nghe đọc** toàn bộ đoạn văn tiếng Anh.
     - Tùy chọn lưu đoạn văn mẫu vào Thư mục Flashcard.
+- **Khả năng kéo di chuyển (Draggable Tooltip) & Tự đóng khi click ra ngoài**:
+  - Người dùng có thể bấm giữ thanh tiêu đề (Header) của Tooltip để kéo di chuyển pop-up đến bất kỳ vị trí nào trên màn hình (tránh che khuất nội dung đang đọc).
+  - Tự động đóng pop-up tức thì khi người dùng click chuột sang bất kỳ vùng nào khác bên ngoài.
+  - Phím tắt `Escape` để đóng nhanh pop-up bất cứ lúc nào.
 - **Cách ly giao diện bằng Shadow DOM**:
   - Giao diện Tooltip được render bên trong một Shadow Root độc lập (`#vocab-highlighter-host`).
   - Đảm bảo 100% không bị ảnh hưởng bởi CSS của trang web hiện tại và không làm biến dạng giao diện trang web.
@@ -88,6 +92,31 @@
   8. `Thư mục`
   9. `Ngày lưu`
 
+### 3.7. Tab Cài Đặt Toàn Diện (Settings & Preferences)
+- **Hành vi kích hoạt (Trigger Behavior)**:
+  - Bật/Tắt tính năng bôi đen tra từ trên trình duyệt.
+  - Chế độ kích hoạt: Tự động khi bôi đen / Nhấn giữ phím `Alt` khi bôi đen / Nhấn giữ phím `Ctrl` (`Cmd`) khi bôi đen (tránh hiện popup ngoài ý muốn).
+  - Danh sách đen (Domain Blacklist): Nhập danh sách domain (ví dụ `docs.google.com`, `notion.so`) không kích hoạt tiện ích.
+- **Phát âm & Giọng đọc (Audio & Speech)**:
+  - Tự động phát âm ngay khi mở popup tra từ.
+  - Chọn giọng đọc tiếng Anh: Tiếng Anh Mỹ (`en-US`) hoặc Anh Anh (`en-GB`).
+  - Tốc độ đọc: 0.8x (chậm), 1.0x (chuẩn), 1.2x (nhanh).
+- **Dịch thuật & Hiển thị (Translation & Display)**:
+  - Ngôn ngữ dịch đích đa dạng: Tiếng Việt (`vi`), Tiếng Trung (`zh-CN`), Tiếng Nhật (`ja`), Tiếng Hàn (`ko`), Tiếng Pháp (`fr`), Tiếng Tây Ban Nha (`es`), Tiếng Đức (`de`).
+  - Ẩn/Hiện định nghĩa tiếng Anh (English definition).
+  - Ẩn/Hiện câu ví dụ mẫu (Example sentences).
+- **Học tập Flashcard (Study Preferences)**:
+  - Thư mục lưu mặc định khi tra từ mới.
+  - Hướng ôn tập: Xuôi (`En -> Bản dịch`) hoặc Ngược (`Bản dịch -> En`).
+  - Tự động phát âm khi lật thẻ sang mặt sau.
+- **Giao diện (Appearance)**:
+  - Chủ đề giao diện: Sáng (Light), Tối (Dark), Theo hệ thống (System).
+  - Cỡ chữ popup: Nhỏ (Small), Vừa (Medium), Lớn (Large).
+- **Sao lưu & Phục hồi dữ liệu (Backup & Restore)**:
+  - Xuất file sao lưu toàn bộ kho từ và cài đặt (`vocab_backup_*.json`).
+  - Nhập file sao lưu với cơ chế khử trùng lặp (deduplication) thông minh.
+  - Khôi phục cài đặt mặc định một chạm.
+
 ---
 
 ## 4. Đặc Tả Dữ Liệu (Data Schema)
@@ -95,6 +124,24 @@
 Lưu trữ thông qua `chrome.storage.local`:
 
 ```typescript
+// Cài đặt người dùng
+interface UserSettings {
+  extensionEnabled: boolean;       // Bật/tắt tiện ích
+  triggerMode: "auto" | "alt" | "ctrl"; // Chế độ bôi đen ("auto" | "alt" | "ctrl")
+  blacklist: string;               // Danh sách domain bị chặn (xuống dòng hoặc dấu phẩy)
+  autoPlayAudio: boolean;          // Tự động phát âm khi hiện popup
+  speechVoice: "en-US" | "en-GB";  // Giọng đọc Web Speech API
+  speechRate: number;              // Tốc độ đọc (0.8, 1.0, 1.2)
+  targetLanguage: string;          // Ngôn ngữ dịch (vi, zh-CN, ja, ko, fr, es, de)
+  showEnglishDef: boolean;         // Hiện định nghĩa Anh-Anh
+  showExample: boolean;            // Hiện ví dụ mẫu
+  defaultFolderId: string;         // Thư mục lưu mặc định ("default" hoặc folderId)
+  studyDirection: "en-vi" | "vi-en"; // Chiều ôn tập flashcard
+  autoSpeakOnFlip: boolean;        // Tự động đọc khi lật thẻ flashcard
+  theme: "light" | "dark" | "system"; // Giao diện sáng / tối / theo hệ điều hành
+  fontSize: "small" | "medium" | "large"; // Cỡ chữ popup
+}
+
 // Thư mục
 interface Folder {
   id: string;          // e.g. "default", "folder_1729000000"
@@ -108,7 +155,7 @@ interface FlashcardItem {
   word: string;                // từ vựng hoặc tiêu đề câu trích
   phonetic: string;            // phiên âm IPA (nếu có)
   audio: string;               // URL file âm thanh mp3 (nếu có)
-  vietnameseMeaning: string;   // bản dịch tiếng Việt
+  vietnameseMeaning: string;   // bản dịch tiếng Việt / ngôn ngữ đích
   partOfSpeech: string;        // từ loại (noun, verb, paragraph...)
   meaning: string;             // định nghĩa tiếng Anh hoặc văn bản gốc
   example: string;             // câu ví dụ minh họa
@@ -122,6 +169,7 @@ interface AppStorage {
   flashcards: FlashcardItem[];
   folders: Folder[];
   activeFolderId: string;     // folder hiện đang được chọn lọc ("all" hoặc folderId)
+  settings?: UserSettings;    // cấu hình người dùng
 }
 ```
 

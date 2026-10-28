@@ -16,7 +16,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // 1. Tra từ vựng hoặc đoạn văn khi bôi đen
   if (request.action === "lookup_word") {
-    handleLookupOrTranslate(request.word)
+    handleLookupOrTranslate(request.word, request.targetLang || "vi")
       .then((data) => sendResponse({ success: true, data }))
       .catch((error) => sendResponse({ success: false, error: error.message }));
     return true;
@@ -34,7 +34,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 /**
  * Xử lý thông minh: Phân biệt Từ đơn (Vocabulary) hay Đoạn văn dài (Sentence / Paragraph)
  */
-async function handleLookupOrTranslate(rawText) {
+async function handleLookupOrTranslate(rawText, targetLang = "vi") {
   const cleanText = rawText.trim();
   if (!cleanText) {
     throw new Error("Nội dung cần tra không hợp lệ.");
@@ -45,7 +45,7 @@ async function handleLookupOrTranslate(rawText) {
 
   // Nếu là đoạn văn dài -> chỉ dịch toàn văn bản
   if (isParagraph) {
-    const translation = await translateLongText(cleanText, "auto", "vi");
+    const translation = await translateLongText(cleanText, "auto", targetLang);
     return {
       isLongText: true,
       originalText: cleanText,
@@ -58,7 +58,7 @@ async function handleLookupOrTranslate(rawText) {
   // Nếu là từ đơn hoặc cụm từ ngắn -> tra từ điển Anh-Anh kết hợp dịch tiếng Việt
   const [dictResult, viMeaning] = await Promise.allSettled([
     fetchEnglishDictionary(cleanText),
-    translateLongText(cleanText, "auto", "vi")
+    translateLongText(cleanText, "auto", targetLang)
   ]);
 
   const dictData = dictResult.status === "fulfilled" ? dictResult.value : null;

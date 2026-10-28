@@ -1,4 +1,4 @@
-// popup/popup.js - Quản lý từ vựng, flashcard, thư mục, xuất Excel & dịch đoạn văn
+// popup/popup.js - Quản lý từ vựng, flashcard, thư mục, xuất Excel, dịch đoạn văn & cài đặt
 
 document.addEventListener("DOMContentLoaded", () => {
   // Elements chính
@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const clearAllBtn = document.getElementById("clear-all-btn");
   const exportExcelBtn = document.getElementById("export-excel-btn");
   const folderBarContainer = document.getElementById("folder-bar-container");
+  const openWindowBtn = document.getElementById("open-window-btn");
 
   // Elements Folder
   const folderFilterSelect = document.getElementById("folder-filter-select");
@@ -63,10 +64,50 @@ document.addEventListener("DOMContentLoaded", () => {
   const transFolderSelect = document.getElementById("trans-folder-select");
   const saveTransBtn = document.getElementById("save-trans-btn");
 
+  // Elements Tab Cài đặt
+  const settingsToast = document.getElementById("settings-toast");
+  const settingExtensionEnabled = document.getElementById("setting-extension-enabled");
+  const settingTriggerMode = document.getElementById("setting-trigger-mode");
+  const settingBlacklist = document.getElementById("setting-blacklist");
+  const settingAutoAudio = document.getElementById("setting-auto-audio");
+  const settingVoice = document.getElementById("setting-voice");
+  const settingRate = document.getElementById("setting-rate");
+  const settingTargetLang = document.getElementById("setting-target-lang");
+  const settingShowEnDef = document.getElementById("setting-show-en-def");
+  const settingShowExample = document.getElementById("setting-show-example");
+  const settingDefaultFolder = document.getElementById("setting-default-folder");
+  const settingStudyDirection = document.getElementById("setting-study-direction");
+  const settingAutoSpeakFlip = document.getElementById("setting-auto-speak-flip");
+  const settingTheme = document.getElementById("setting-theme");
+  const settingFontSize = document.getElementById("setting-font-size");
+  const settingBackupBtn = document.getElementById("setting-backup-btn");
+  const settingImportBtn = document.getElementById("setting-import-btn");
+  const settingImportFile = document.getElementById("setting-import-file");
+  const settingResetBtn = document.getElementById("setting-reset-btn");
+
+  // Cài đặt mặc định
+  const defaultSettings = {
+    extensionEnabled: true,
+    triggerMode: "auto", // "auto" | "alt" | "ctrl"
+    blacklist: "docs.google.com\nnotion.so\nfigma.com",
+    autoPlayAudio: false,
+    speechVoice: "en-US",
+    speechRate: 1.0,
+    targetLanguage: "vi",
+    showEnglishDef: true,
+    showExample: true,
+    defaultFolderId: "default",
+    studyDirection: "en-vi",
+    autoSpeakOnFlip: false,
+    theme: "light",
+    fontSize: "medium"
+  };
+
   // State
   let flashcards = [];
   let folders = [];
   let activeFolderId = "all";
+  let settings = { ...defaultSettings };
   let filteredCards = [];
   let currentCardIndex = 0;
   let isFlipped = false;
@@ -83,16 +124,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function loadData() {
     return new Promise((resolve) => {
-      chrome.storage.local.get({ flashcards: [], folders: [], activeFolderId: "all" }, (res) => {
-        flashcards = res.flashcards || [];
-        folders = res.folders || [];
-        if (folders.length === 0) {
-          folders = [{ id: "default", name: "Mặc định", createdAt: new Date().toISOString() }];
-          chrome.storage.local.set({ folders });
+      chrome.storage.local.get(
+        { flashcards: [], folders: [], activeFolderId: "all", settings: defaultSettings },
+        (res) => {
+          flashcards = res.flashcards || [];
+          folders = res.folders || [];
+          if (folders.length === 0) {
+            folders = [{ id: "default", name: "Mặc định", createdAt: new Date().toISOString() }];
+            chrome.storage.local.set({ folders });
+          }
+          activeFolderId = res.activeFolderId || "all";
+          settings = { ...defaultSettings, ...(res.settings || {}) };
+          applyTheme(settings.theme);
+          resolve();
         }
-        activeFolderId = res.activeFolderId || "all";
-        resolve();
-      });
+      );
     });
   }
 
@@ -107,10 +153,10 @@ document.addEventListener("DOMContentLoaded", () => {
         btn.classList.add("active");
         document.getElementById(`tab-${targetTab}`).classList.add("active");
 
-        // Ẩn thanh folder khi ở tab Dịch để thoáng màn hình
-        if (targetTab === "translate") {
+        // Ẩn thanh folder khi ở tab Dịch hoặc Cài đặt để thoáng màn hình
+        if (targetTab === "translate" || targetTab === "settings") {
           folderBarContainer.style.display = "none";
-          renderTransFolderSelect();
+          if (targetTab === "translate") renderTransFolderSelect();
         } else {
           folderBarContainer.style.display = "flex";
         }
@@ -120,6 +166,25 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
     });
+
+    // Mở trong cửa sổ riêng (Floating Window)
+    if (openWindowBtn) {
+      if (window.innerWidth >= 390 && window.location.search.includes("window=true")) {
+        openWindowBtn.style.display = "none";
+      }
+
+      openWindowBtn.addEventListener("click", () => {
+        if (chrome.windows) {
+          chrome.windows.create({
+            url: chrome.runtime.getURL("popup/popup.html?window=true"),
+            type: "popup",
+            width: 410,
+            height: 620
+          });
+          window.close();
+        }
+      });
+    }
 
     // Lọc theo thư mục
     folderFilterSelect.addEventListener("change", (e) => {
@@ -242,6 +307,50 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     saveTransBtn.addEventListener("click", saveTranslatedParagraph);
+
+    // ================= SỰ KIỆN TAB CÀI ĐẶT =================
+    const settingInputs = [
+      settingExtensionEnabled,
+      settingTriggerMode,
+      settingBlacklist,
+      settingAutoAudio,
+      settingVoice,
+      settingRate,
+      settingTargetLang,
+      settingShowEnDef,
+      settingShowExample,
+      settingDefaultFolder,
+      settingStudyDirection,
+      settingAutoSpeakFlip,
+      settingTheme,
+      settingFontSize
+    ];
+
+    settingInputs.forEach((input) => {
+      if (input) {
+        input.addEventListener("change", handleSettingChange);
+      }
+    });
+
+    if (settingBlacklist) {
+      settingBlacklist.addEventListener("input", debounce(handleSettingChange, 800));
+    }
+
+    // Sao lưu JSON
+    if (settingBackupBtn) {
+      settingBackupBtn.addEventListener("click", exportBackupJson);
+    }
+
+    // Nhập JSON
+    if (settingImportBtn && settingImportFile) {
+      settingImportBtn.addEventListener("click", () => settingImportFile.click());
+      settingImportFile.addEventListener("change", importBackupJson);
+    }
+
+    // Reset cài đặt gốc
+    if (settingResetBtn) {
+      settingResetBtn.addEventListener("click", resetSettings);
+    }
   }
 
   function updateUI() {
@@ -249,8 +358,174 @@ document.addEventListener("DOMContentLoaded", () => {
     applyFilters();
     initFlashcardDeck();
     renderTransFolderSelect();
+    renderSettingsUI();
   }
 
+  // ================= CÀI ĐẶT & THEME =================
+  function renderSettingsUI() {
+    if (!settingExtensionEnabled) return;
+
+    settingExtensionEnabled.checked = Boolean(settings.extensionEnabled);
+    settingTriggerMode.value = settings.triggerMode || "auto";
+    settingBlacklist.value = settings.blacklist || "";
+    settingAutoAudio.checked = Boolean(settings.autoPlayAudio);
+    settingVoice.value = settings.speechVoice || "en-US";
+    settingRate.value = String(settings.speechRate || "1.0");
+    settingTargetLang.value = settings.targetLanguage || "vi";
+    settingShowEnDef.checked = Boolean(settings.showEnglishDef !== false);
+    settingShowExample.checked = Boolean(settings.showExample !== false);
+
+    // Điền danh sách folder vào setting default folder
+    settingDefaultFolder.innerHTML = "";
+    folders.forEach((f) => {
+      const opt = document.createElement("option");
+      opt.value = f.id;
+      opt.textContent = `📁 ${f.name}`;
+      if (f.id === (settings.defaultFolderId || "default")) opt.selected = true;
+      settingDefaultFolder.appendChild(opt);
+    });
+
+    settingStudyDirection.value = settings.studyDirection || "en-vi";
+    settingAutoSpeakFlip.checked = Boolean(settings.autoSpeakOnFlip);
+    settingTheme.value = settings.theme || "light";
+    settingFontSize.value = settings.fontSize || "medium";
+  }
+
+  function handleSettingChange() {
+    settings = {
+      extensionEnabled: settingExtensionEnabled.checked,
+      triggerMode: settingTriggerMode.value,
+      blacklist: settingBlacklist.value.trim(),
+      autoPlayAudio: settingAutoAudio.checked,
+      speechVoice: settingVoice.value,
+      speechRate: parseFloat(settingRate.value) || 1.0,
+      targetLanguage: settingTargetLang.value,
+      showEnglishDef: settingShowEnDef.checked,
+      showExample: settingShowExample.checked,
+      defaultFolderId: settingDefaultFolder.value,
+      studyDirection: settingStudyDirection.value,
+      autoSpeakOnFlip: settingAutoSpeakFlip.checked,
+      theme: settingTheme.value,
+      fontSize: settingFontSize.value
+    };
+
+    chrome.storage.local.set({ settings }, () => {
+      applyTheme(settings.theme);
+      showSettingsToast();
+      initFlashcardDeck();
+    });
+  }
+
+  function applyTheme(theme) {
+    if (theme === "dark") {
+      document.body.setAttribute("data-theme", "dark");
+    } else if (theme === "system") {
+      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        document.body.setAttribute("data-theme", "dark");
+      } else {
+        document.body.removeAttribute("data-theme");
+      }
+    } else {
+      document.body.removeAttribute("data-theme");
+    }
+  }
+
+  function showSettingsToast() {
+    if (!settingsToast) return;
+    settingsToast.classList.remove("hidden");
+    clearTimeout(settingsToast._timer);
+    settingsToast._timer = setTimeout(() => {
+      settingsToast.classList.add("hidden");
+    }, 1500);
+  }
+
+  function exportBackupJson() {
+    const backupData = {
+      appName: "Vocab Highlighter",
+      version: "1.1.0",
+      exportDate: new Date().toISOString(),
+      flashcards,
+      folders,
+      settings
+    };
+
+    const jsonStr = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const dateTag = new Date().toISOString().slice(0, 10);
+    const downloadLink = document.createElement("a");
+    downloadLink.href = url;
+    downloadLink.setAttribute("download", `Vocab_Highlighter_Backup_${dateTag}.json`);
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    URL.revokeObjectURL(url);
+  }
+
+  function importBackupJson(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const importedData = JSON.parse(event.target.result);
+        if (!importedData || (!importedData.flashcards && !importedData.folders)) {
+          alert("File sao lưu không đúng định dạng.");
+          return;
+        }
+
+        if (confirm(`Tìm thấy ${importedData.flashcards ? importedData.flashcards.length : 0} từ vựng trong file sao lưu. Bạn có muốn nhập vào tiện ích?`)) {
+          if (importedData.flashcards) {
+            // Gộp và loại trừ trùng lặp theo id hoặc word
+            const existingIds = new Set(flashcards.map((c) => c.id || c.word));
+            importedData.flashcards.forEach((item) => {
+              if (!existingIds.has(item.id || item.word)) {
+                flashcards.unshift(item);
+              }
+            });
+          }
+
+          if (importedData.folders) {
+            const existingFolderIds = new Set(folders.map((f) => f.id));
+            importedData.folders.forEach((f) => {
+              if (!existingFolderIds.has(f.id)) {
+                folders.push(f);
+              }
+            });
+          }
+
+          if (importedData.settings) {
+            settings = { ...defaultSettings, ...importedData.settings };
+          }
+
+          chrome.storage.local.set({ flashcards, folders, settings }, () => {
+            alert("✓ Đã nhập dữ liệu sao lưu thành công!");
+            updateUI();
+          });
+        }
+      } catch (err) {
+        alert("Lỗi khi đọc file JSON: " + err.message);
+      } finally {
+        settingImportFile.value = "";
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function resetSettings() {
+    if (confirm("Bạn có chắc chắn muốn khôi phục tất cả cài đặt về mặc định ban đầu? (Dữ liệu từ vựng và thư mục sẽ không bị mất)")) {
+      settings = { ...defaultSettings };
+      chrome.storage.local.set({ settings }, () => {
+        applyTheme(settings.theme);
+        renderSettingsUI();
+        showSettingsToast();
+      });
+    }
+  }
+
+  // ================= QUẢN LÝ THƯ MỤC =================
   function renderFolderDropdowns() {
     folderFilterSelect.innerHTML = `<option value="all" ${activeFolderId === "all" ? "selected" : ""}>Tất cả thư mục (${flashcards.length})</option>`;
     editFolderSelect.innerHTML = "";
@@ -276,6 +551,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const opt = document.createElement("option");
       opt.value = f.id;
       opt.textContent = `📁 ${f.name}`;
+      if (f.id === (settings.defaultFolderId || "default")) opt.selected = true;
       transFolderSelect.appendChild(opt);
     });
   }
@@ -486,8 +762,10 @@ document.addEventListener("DOMContentLoaded", () => {
     doTranslateBtn.textContent = "Đang dịch...";
     transResultArea.textContent = "⏳ Đang kết nối dịch đoạn văn...";
 
+    const targetLang = settings.targetLanguage || "vi";
+
     chrome.runtime.sendMessage(
-      { action: "translate_text", text, sourceLang: "auto", targetLang: "vi" },
+      { action: "translate_text", text, sourceLang: "auto", targetLang },
       (res) => {
         doTranslateBtn.disabled = false;
         doTranslateBtn.textContent = "Dịch sang tiếng Việt ➔";
@@ -519,7 +797,7 @@ document.addEventListener("DOMContentLoaded", () => {
       partOfSpeech: "paragraph",
       meaning: sourceText,
       example: "",
-      folderId: transFolderSelect.value || "default",
+      folderId: transFolderSelect.value || settings.defaultFolderId || "default",
       notes: "Đoạn văn dịch",
       dateAdded: new Date().toISOString(),
     };
@@ -629,13 +907,32 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!card) return;
 
     deckProgressEl.textContent = `Thẻ ${currentCardIndex + 1} / ${deckCards.length}`;
-    fcFrontWord.textContent = card.word;
-    fcFrontPhonetic.textContent = card.phonetic || "";
-    fcFrontPhonetic.style.display = card.phonetic ? "inline" : "none";
 
-    fcBackVi.textContent = card.vietnameseMeaning || "Chưa có nghĩa tiếng Việt";
-    fcBackPos.textContent = card.partOfSpeech || "Vocabulary";
-    fcBackMeaning.textContent = card.meaning || "Chưa có định nghĩa";
+    const isViEn = settings.studyDirection === "vi-en";
+
+    if (isViEn) {
+      // Mặt trước là tiếng Việt
+      fcFrontWord.textContent = card.vietnameseMeaning || card.word;
+      fcFrontPhonetic.textContent = "";
+      fcFrontPhonetic.style.display = "none";
+      fcFrontAudioBtn.style.display = "none";
+
+      // Mặt sau là tiếng Anh
+      fcBackVi.textContent = card.word;
+      fcBackPos.textContent = card.partOfSpeech || "Vocabulary";
+      fcBackMeaning.textContent = card.phonetic ? `${card.phonetic} - ${card.meaning}` : (card.meaning || "");
+    } else {
+      // Mặt trước là tiếng Anh (Mặc định)
+      fcFrontWord.textContent = card.word;
+      fcFrontPhonetic.textContent = card.phonetic || "";
+      fcFrontPhonetic.style.display = card.phonetic ? "inline" : "none";
+      fcFrontAudioBtn.style.display = "flex";
+
+      // Mặt sau là tiếng Việt
+      fcBackVi.textContent = card.vietnameseMeaning || "Chưa có nghĩa tiếng Việt";
+      fcBackPos.textContent = card.partOfSpeech || "Vocabulary";
+      fcBackMeaning.textContent = card.meaning || "Chưa có định nghĩa";
+    }
 
     if (card.example) {
       fcBackExample.textContent = `"${card.example}"`;
@@ -659,6 +956,13 @@ document.addEventListener("DOMContentLoaded", () => {
     isFlipped = !isFlipped;
     if (isFlipped) {
       flashcardCard.classList.add("flipped");
+      if (settings.autoSpeakOnFlip) {
+        const deckCards = getDeckCards();
+        if (deckCards[currentCardIndex]) {
+          const card = deckCards[currentCardIndex];
+          playAudio(card.word, card.audio);
+        }
+      }
     } else {
       flashcardCard.classList.remove("flipped");
     }
@@ -673,10 +977,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (audioUrl) {
       const audio = new Audio(audioUrl);
       audio.play().catch(() => {
-        speakText(word, "en-US");
+        speakText(word, settings.speechVoice || "en-US");
       });
     } else {
-      speakText(word, "en-US");
+      speakText(word, settings.speechVoice || "en-US");
     }
   }
 
@@ -685,7 +989,7 @@ document.addEventListener("DOMContentLoaded", () => {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = lang;
-      utterance.rate = 0.95;
+      utterance.rate = settings.speechRate || 0.95;
       window.speechSynthesis.speak(utterance);
     }
   }
@@ -698,5 +1002,13 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
+  }
+
+  function debounce(func, wait) {
+    let timeout;
+    return function (...args) {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(this, args), wait);
+    };
   }
 });

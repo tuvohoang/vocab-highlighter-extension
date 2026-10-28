@@ -17,6 +17,13 @@
           <span class="badge" id="vocab-count">0 từ</span>
         </div>
       </div>
+      <button id="open-window-btn" class="header-icon-btn" title="Mở trong cửa sổ riêng để di chuyển tự do khắp màn hình desktop">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+          <polyline points="15 3 21 3 21 9"></polyline>
+          <line x1="10" y1="14" x2="21" y2="3"></line>
+        </svg>
+      </button>
     </header>
 
     <!-- Folder Bar -->
@@ -57,6 +64,13 @@
           <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
         </svg>
         Dịch đoạn văn
+      </button>
+      <button class="tab-btn" data-tab="settings">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        Cài đặt
       </button>
     </nav>
 
@@ -196,6 +210,228 @@
               <button id="save-trans-btn" class="trans-save-btn">⭐ Lưu câu này</button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- Tab 4: Cài đặt tiện ích -->
+      <section id="tab-settings" class="tab-content">
+        <div class="settings-scroll-container">
+          <div id="settings-toast" class="settings-toast hidden">✓ Đã lưu cài đặt</div>
+
+          <!-- Nhóm 1: Thao tác & Kích hoạt -->
+          <div class="settings-group">
+            <div class="settings-group-title">⚡ Thao tác & Kích hoạt</div>
+            
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">Bật tiện ích</span>
+                <span class="setting-desc">Cho phép bôi đen để tra từ trên các trang web</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setting-extension-enabled" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">Chế độ kích hoạt Tooltip</span>
+                <span class="setting-desc">Cách pop-up xuất hiện khi bôi đen</span>
+              </div>
+              <select id="setting-trigger-mode" class="setting-select">
+                <option value="auto">Tự động khi bôi đen</option>
+                <option value="alt">Giữ phím Alt khi bôi đen</option>
+                <option value="ctrl">Giữ phím Ctrl/Cmd khi bôi đen</option>
+              </select>
+            </div>
+
+            <div class="setting-item-block">
+              <div class="setting-info">
+                <span class="setting-label">Trang web loại trừ (Blacklist)</span>
+                <span class="setting-desc">Không kích hoạt tiện ích trên các trang này (mỗi dòng một domain)</span>
+              </div>
+              <textarea id="setting-blacklist" rows="2" placeholder="docs.google.com&#10;notion.so&#10;figma.com" class="setting-textarea"></textarea>
+            </div>
+          </div>
+
+          <!-- Nhóm 2: Âm thanh & Giọng đọc -->
+          <div class="settings-group">
+            <div class="settings-group-title">🔊 Âm thanh & Giọng đọc</div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">Tự động phát âm</span>
+                <span class="setting-desc">Phát âm từ vựng ngay khi mở pop-up tra từ</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setting-auto-audio">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">Giọng phát âm</span>
+                <span class="setting-desc">Chất giọng tiếng Anh khi đọc</span>
+              </div>
+              <select id="setting-voice" class="setting-select">
+                <option value="en-US">Anh - Mỹ (US)</option>
+                <option value="en-GB">Anh - Anh (UK)</option>
+              </select>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">Tốc độ đọc</span>
+                <span class="setting-desc">Tốc độ phát âm âm thanh</span>
+              </div>
+              <select id="setting-rate" class="setting-select">
+                <option value="0.8">0.8x (Chậm)</option>
+                <option value="1.0" selected>1.0x (Bình thường)</option>
+                <option value="1.2">1.2x (Nhanh)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Nhóm 3: Dịch thuật & Hiển thị -->
+          <div class="settings-group">
+            <div class="settings-group-title">🌐 Dịch thuật & Hiển thị</div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">Ngôn ngữ dịch đích</span>
+                <span class="setting-desc">Ngôn ngữ dịch nghĩa của từ/đoạn</span>
+              </div>
+              <select id="setting-target-lang" class="setting-select">
+                <option value="vi" selected>🇻🇳 Tiếng Việt</option>
+                <option value="zh-CN">🇨🇳 Tiếng Trung</option>
+                <option value="ja">🇯🇵 Tiếng Nhật</option>
+                <option value="ko">🇰🇷 Tiếng Hàn</option>
+                <option value="fr">🇫🇷 Tiếng Pháp</option>
+                <option value="es">🇪🇸 Tiếng Tây Ban Nha</option>
+                <option value="de">🇩🇪 Tiếng Đức</option>
+              </select>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">Hiện định nghĩa tiếng Anh</span>
+                <span class="setting-desc">Hiển thị giải thích Anh-Anh từ từ điển</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setting-show-en-def" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">Hiện câu ví dụ</span>
+                <span class="setting-desc">Hiển thị câu ví dụ minh họa ngữ cảnh</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setting-show-example" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Nhóm 4: Flashcard & Ôn tập -->
+          <div class="settings-group">
+            <div class="settings-group-title">🗂️ Flashcard & Ôn tập</div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">Thư mục lưu mặc định</span>
+                <span class="setting-desc">Tự động chọn thư mục này khi lưu</span>
+              </div>
+              <select id="setting-default-folder" class="setting-select"></select>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">Chiều ôn tập Flashcard</span>
+                <span class="setting-desc">Mặt trước của thẻ ghi nhớ</span>
+              </div>
+              <select id="setting-study-direction" class="setting-select">
+                <option value="en-vi">Từ tiếng Anh ➔ Nghĩa tiếng Việt</option>
+                <option value="vi-en">Nghĩa tiếng Việt ➔ Từ tiếng Anh</option>
+              </select>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">Tự phát âm khi lật thẻ</span>
+                <span class="setting-desc">Tự đọc âm thanh khi lật xem nghĩa</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setting-auto-speak-flip">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Nhóm 5: Giao diện -->
+          <div class="settings-group">
+            <div class="settings-group-title">🎨 Giao diện</div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">Chế độ màu sắc</span>
+                <span class="setting-desc">Chủ đề giao diện popup và pop-up web</span>
+              </div>
+              <select id="setting-theme" class="setting-select">
+                <option value="light">Sáng (Light)</option>
+                <option value="dark">Tối (Dark)</option>
+                <option value="system">Theo hệ thống (System)</option>
+              </select>
+            </div>
+
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">Cỡ chữ pop-up</span>
+                <span class="setting-desc">Kích thước chữ trong Tooltip</span>
+              </div>
+              <select id="setting-font-size" class="setting-select">
+                <option value="small">Nhỏ (12px)</option>
+                <option value="medium" selected>Vừa (14px)</option>
+                <option value="large">Lớn (16px)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Nhóm 6: Dữ liệu & Sao lưu -->
+          <div class="settings-group">
+            <div class="settings-group-title">💾 Dữ liệu & Sao lưu</div>
+
+            <div class="settings-btn-row">
+              <button id="setting-backup-btn" class="settings-action-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Sao lưu dữ liệu (Backup JSON)
+              </button>
+              
+              <button id="setting-import-btn" class="settings-action-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                Nhập dữ liệu (Import JSON)
+              </button>
+              <input type="file" id="setting-import-file" accept=".json" style="display: none;">
+            </div>
+
+            <div class="settings-danger-zone">
+              <button id="setting-reset-btn" class="settings-reset-btn">
+                Khôi phục cài đặt gốc
+              </button>
+            </div>
+          </div>
+
         </div>
       </section>
     </main>

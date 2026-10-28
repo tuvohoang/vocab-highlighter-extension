@@ -73,11 +73,21 @@ graph TD
   * Ưu tiên 2: Tự động fallback sang Web Speech API (`window.speechSynthesis`) khi không có file âm thanh hoặc kết nối âm thanh bị lỗi.
 
 ### 2.3. Popup Application (`popup/popup.html`, `popup/popup.css`, `popup/popup.js`)
-* **Vai trò**: Ứng dụng quản trị và ôn tập cá nhân.
-* **Kiến trúc SPA (Single Page Application)** dạng mini gồm 3 tab chức năng:
+* **Vai trò**: Ứng dụng quản trị, ôn tập và cấu hình cá nhân.
+* **Kiến trúc SPA (Single Page Application)** dạng mini gồm 4 tab chức năng:
   1. **Tab Từ vựng**: Danh sách từ đã lưu, tìm kiếm real-time, nút sửa/xóa, bộ lọc theo Folder, nút xuất file Excel.
   2. **Tab Flashcard**: Chế độ ôn tập với hiệu ứng xoay lật 3D (`transform-style: preserve-3d; transition: transform 0.45s`).
   3. **Tab Dịch đoạn văn**: Công cụ dịch nhanh hai chiều với khung nhập văn bản, đếm ký tự và nút lưu thành flashcard.
+  4. **Tab Cài đặt**: Trung tâm quản lý hành vi kích hoạt (bật/tắt, blacklist domain, trigger key Alt/Ctrl), giọng đọc & tốc độ âm thanh, ngôn ngữ dịch đích (7 ngôn ngữ), giao diện Dark/Light mode, cỡ chữ, và hệ thống sao lưu/phục hồi JSON.
+
+### 2.4. Cơ Chế Đồng Bộ Cài Đặt Thời Gian Thực (Live Settings Synchronization)
+```mermaid
+graph LR
+    POPUP_SET["Popup Settings UI"] -->|Ghi cài đặt| STORE[("chrome.storage.local ('settings')")]
+    STORE -->|Sự kiện 'chrome.storage.onChanged'| CS["Content Script (Active Web Tabs)"]
+    CS -->|Cập nhật ngay lập tức| THEME["Chủ đề Dark/Light, Kích thước chữ, Phím bổ trợ"]
+```
+* **Phản ứng tức thì (Instant Reactivity)**: Content Script lắng nghe sự kiện `chrome.storage.onChanged`. Khi người dùng thay đổi bất kỳ cấu hình nào trong Popup (ví dụ đổi phím kích hoạt sang `Alt`, bật Dark Mode, đổi ngôn ngữ dịch), các tab đang mở áp dụng ngay lập tức mà không cần F5 tải lại trang.
 
 ---
 

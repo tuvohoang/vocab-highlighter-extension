@@ -34,5 +34,14 @@
       "js": ["content/content.js"],
       "css": ["content/content.css"]
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/drag-hand.png",
+        "icons/drag-hand-cursor.png"
+      ],
+      "matches": ["<all_urls>"]
+    }
   ]
 }
