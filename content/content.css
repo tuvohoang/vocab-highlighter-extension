@@ -1,0 +1,8 @@
+/* content/content.css - Thiết lập cho container gốc trên trang web */
+#vocab-highlighter-host {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2147483647; /* Đảm bảo luôn nằm trên cùng */
+  pointer-events: none;
+}

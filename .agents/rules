@@ -1,0 +1,30 @@
+# Quy Tắc Phát Triển Dự Án (AI Agent Rules)
+# Dự án: Vocab Highlighter Extension
+
+## 1. Chuẩn Manifest V3 (MV3)
+- Tuyệt đối tuân thủ các tiêu chuẩn của Chrome Manifest V3.
+- Không sử dụng các API đã lỗi thời (như `chrome.extension`, `background.scripts` dạng page HTML).
+- Toàn bộ tác vụ chạy ngầm phải đặt trong Background Service Worker (`background/background.js`).
+- Không dùng code thực thi từ xa (`eval()`, dynamic scripts từ CDN bên ngoài). Tất cả mã nguồn phải được đóng gói nội bộ (packaged locally).
+- Gọi API bên ngoài (Dictionary, Translate) phải thông qua Background Service Worker để tránh vi phạm chính sách CSP (Content Security Policy) và CORS của các trang web mục tiêu.
+
+## 2. Coding Convention cho Vanilla JS & CSS
+- Sử dụng Vanilla JavaScript hiện đại (ES6+), cú pháp rõ ràng, module hóa hợp lý.
+- Tuyệt đối không cài đặt các package npm/node_modules thừa thãi nếu không có bước build (bundler). Extension chạy trực tiếp native trên trình duyệt.
+- Xử lý bất đồng bộ bằng `async/await` và `Promise`, luôn bọc `try/catch` cẩn thận để không làm crash Extension runtime.
+- Định dạng CSS sử dụng CSS Variables (`:root`), áp dụng thiết kế Responsive và hỗ trợ thẩm mỹ cao.
+
+## 3. Nguyên Tắc Tránh Ô Nhiễm Biến Toàn Cục (Scope Isolation)
+- Trong `content.js`:
+  - Luôn bọc toàn bộ mã trong IIFE `(function() { ... })();`.
+  - Không gán biến, hàm ra ngoài đối tượng `window` hay `document` của trang web đang mở.
+  - Sử dụng **Shadow DOM** (`attachShadow({ mode: "open" })`) cho tất cả các phần tử UI nổi của extension trên trang web. Điều này đảm bảo:
+    - CSS của trang web không làm hỏng giao diện extension.
+    - CSS của extension không làm biến đổi giao diện trang web người dùng đang đọc.
+
+## 4. Quản Lý Dữ Liệu & Storage
+- Mọi thao tác lưu trữ cá nhân sử dụng `chrome.storage.local`.
+- Luôn kiểm tra tính hợp lệ của ngữ cảnh (`isExtensionValid()`) trước khi gọi các hàm `chrome.*` để tránh văng ngoại lệ `Extension context invalidated`.
+- Luôn có dữ liệu mặc định (fallback) cho mọi trường lưu trữ: `flashcards: []`, `folders: []`.
+- Cấu trúc ID duy nhất cho mỗi item (dùng `Date.now().toString()` hoặc UUID).
+
